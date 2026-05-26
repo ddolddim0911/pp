@@ -14,7 +14,7 @@ DISCORD_DATA_FILE_PATH = Path("user_data.json")
 
 # ⭐ [필독] 예나님의 본계정 디스코드 고유 ID(숫자)를 여기에 꼭 적어주세요!
 # 예나님 본계정으로 로그인했을 때만 딜러 제어 콘솔이 열리게 됩니다.
-ADMIN_DISCORD_ID = "1246351887461257262"
+ADMIN_DISCORD_ID = "여기에_예나님_본계정_디스코드_ID를_넣으세요"
 
 def load_all_discord_data():
     if not DISCORD_DATA_FILE_PATH.exists():
@@ -84,7 +84,7 @@ def evaluate_5_card_hand(cards):
 
     most_common = val_counts.most_common()
     if is_flush and is_straight and straight_high == 14: return (10, "로열 스트레이트 플러시")
-    if is_flush position and is_straight: return (9, "스트레이트 플러시")
+    if is_flush and is_straight: return (9, "스트레이트 플러시")  # 🛠️ 오타 완벽 수정 완료!
     if most_common[0][1] == 4: return (8, "포카드")
     if most_common[0][1] == 3 and most_common[1][1] == 2: return (7, "풀하우스")
     if is_flush: return (6, "플러시")
@@ -431,4 +431,4 @@ else:
 
 # 로그
 st.markdown("### 실시간 테이블 타임라인")
-st.text_area("Live Logs", value="\n".join(shared["game_log"]), height=100, disabled=True,
+st.text_area("Live Logs", value="\n".join(shared["game_log"]), height=100, disabled=True, label_visibility="collapsed")
