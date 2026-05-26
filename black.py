@@ -11,7 +11,7 @@ st.set_page_config(page_title="포커 룸", page_icon="🃏", layout="centered")
 # [중요] 타 프로그램(디스코드 봇 등) 데이터베이스 파일 연동 설정
 # =========================================================================
 # ※ 만약 다른 폴더에 있다면 "C:/내봇폴더/user_data.json" 처럼 절대경로를 적어주세요.
-DISCORD_DATA_FILE_PATH = Path(r"C:\Users\김예나\Desktop\고물\user_data.json")
+DISCORD_DATA_FILE_PATH = Path("user_data.json")
 
 def load_all_discord_data():
     if not DISCORD_DATA_FILE_PATH.exists():
