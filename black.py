@@ -10,8 +10,11 @@ st.set_page_config(page_title="포커 룸", page_icon="🃏", layout="centered")
 # =========================================================================
 # [중요] 타 프로그램(디스코드 봇 등) 데이터베이스 파일 연동 설정
 # =========================================================================
-# ※ 만약 다른 폴더에 있다면 "C:/내봇폴더/user_data.json" 처럼 절대경로를 적어주세요.
 DISCORD_DATA_FILE_PATH = Path("user_data.json")
+
+# ⭐ [필독] 예나님의 본계정 디스코드 고유 ID(숫자)를 여기에 꼭 적어주세요!
+# 예나님 본계정으로 로그인했을 때만 딜러 제어 콘솔이 열리게 됩니다.
+ADMIN_DISCORD_ID = "1246351887461257262"
 
 def load_all_discord_data():
     if not DISCORD_DATA_FILE_PATH.exists():
@@ -81,7 +84,7 @@ def evaluate_5_card_hand(cards):
 
     most_common = val_counts.most_common()
     if is_flush and is_straight and straight_high == 14: return (10, "로열 스트레이트 플러시")
-    if is_flush and is_straight: return (9, "스트레이트 플러시")
+    if is_flush position and is_straight: return (9, "스트레이트 플러시")
     if most_common[0][1] == 4: return (8, "포카드")
     if most_common[0][1] == 3 and most_common[1][1] == 2: return (7, "풀하우스")
     if is_flush: return (6, "플러시")
@@ -95,7 +98,7 @@ def log_action(msg):
     shared["game_log"].insert(0, msg)
 
 # =========================================================================
-# 대기실 전용 포커 족보 및 기본 규칙 가이드 UI 함수 (문양/숫자 서열 포함)
+# 대기실 전용 포커 족보 및 기본 규칙 가이드 UI 함수
 # =========================================================================
 def render_poker_guide():
     with st.expander("초보자를 위한 정통 5카드 포커 족보 가이드 (가장 강한 패 순서) 모를 시 미리 캡쳐", expanded=False):
@@ -202,11 +205,9 @@ if not st.session_state.my_discord_id:
     
     if st.button("자동 로그인 및 대기실 입장", type="primary", use_container_width=True):
         if input_dc_name:
-            # 실시간으로 다른 파일에 보관된 외부 DB 호출
             discord_db = load_all_discord_data()
             found_id = None
             
-            # 대소문자 및 양끝 공백을 무시하고 이름 매칭율 향상
             for uid, info in discord_db.items():
                 db_name = str(info.get("name", "")).strip()
                 if db_name.lower() == input_dc_name.lower():
@@ -215,7 +216,7 @@ if not st.session_state.my_discord_id:
             
             if found_id:
                 st.session_state.my_discord_id = found_id
-                st.session_state.my_display_name = discord_db[found_id]["name"] # 정확한 실시간 이름 대입
+                st.session_state.my_display_name = discord_db[found_id]["name"]
                 
                 shared["waiting_room"][found_id] = discord_db[found_id]["name"]
                 log_action(f"{discord_db[found_id]['name']}님이 대기실에 입장했습니다.")
@@ -224,7 +225,7 @@ if not st.session_state.my_discord_id:
                 st.error(f"'{input_dc_name}' 이름은 외부 연동 데이터베이스에 존재하지 않습니다. 디스코드 봇에 등록된 이름인지 혹은 파일 연동 경로가 올바른지 확인해 주세요.")
     st.stop()
 
-# 최신 포인트 동기화 (상대 프로그램이 수정한 수치 반영)
+# 최신 포인트 동기화
 current_db = load_all_discord_data()
 my_current_points = current_db.get(st.session_state.my_discord_id, {}).get("points", 0)
 
@@ -260,72 +261,78 @@ with col_send:
 # 관리자 전용 제어 센터 (방 만들기 및 인원 추가)
 # =========================================================================
 st.markdown("---")
-with st.expander("관리자 및 딜러 전용 제어 콘솔", expanded=not shared["room_created"]):
-    if not shared["room_created"]:
-        st.warning("현재 개설된 포커 방이 없습니다. 관리자가 방을 먼저 개설해야 합니다.")
-        if st.button("새로운 포커 게임 룸 개설하기", type="primary", use_container_width=True):
-            shared["room_created"] = True
-            log_action("관리자가 새로운 포커 게임 룸을 개설했습니다.")
-            st.rerun()
-    else:
-        st.success("현재 포커 게임 룸이 활성화되어 있습니다.")
-        
-        st.markdown("#### 대기실 인원 관리 및 테이블 초대")
-        if shared["waiting_room"]:
-            waiting_ids = list(shared["waiting_room"].keys())
-            waiting_names = [shared["waiting_room"][uid] for uid in waiting_ids]
-            
-            selected_names = st.multiselect("테이블에 추가할 대기실 인원을 선택하세요:", waiting_names)
-            
-            if st.button("선택한 인원 게임 테이블에 추가", use_container_width=True):
-                for name in selected_names:
-                    for uid, uname in shared["waiting_room"].items():
-                        if uname == name and uid not in shared["players"]:
-                            shared["players"][uid] = {
-                                "name": uname,
-                                "bet": 0,
-                                "folded": False,
-                                "final_hand_text": ""
-                            }
-                            log_action(f"딜러가 {uname}님을 게임 테이블에 참여시켰습니다.")
+
+# 🔒 [보안 적용] 접속한 사람의 ID가 본계정 ID(ADMIN_DISCORD_ID)일 때만 제어 센터 조작 허용!
+if st.session_state.my_discord_id == ADMIN_DISCORD_ID:
+    with st.expander("관리자 및 딜러 전용 제어 콘솔", expanded=not shared["room_created"]):
+        if not shared["room_created"]:
+            st.warning("현재 개설된 포커 방이 없습니다. 관리자가 방을 먼저 개설해야 합니다.")
+            if st.button("새로운 포커 게임 룸 개설하기", type="primary", use_container_width=True):
+                shared["room_created"] = True
+                log_action("관리자가 새로운 포커 게임 룸을 개설했습니다.")
                 st.rerun()
         else:
-            st.caption("현재 로그인 후 대기실에서 대기 중인 유저가 없습니다.")
+            st.success("현재 포커 게임 룸이 활성화되어 있습니다.")
             
-        st.markdown("---")
-        st.markdown("#### 게임 라운드 제어")
-        d_col1, d_col2, d_col3 = st.columns(3)
-        with d_col1:
-            if not shared["game_started"]:
-                if st.button("포커 매치 시작", use_container_width=True, type="primary"):
-                    err = start_classic_game()
-                    if err: st.error(err)
-                    else: st.rerun()
-            else:
-                st.button("배팅 레이스 진행 중", disabled=True, use_container_width=True)
-
-        with d_col2:
-            if shared["game_started"]:
-                if st.button("쇼다운 (패 오픈 및 상금 정산)", use_container_width=True, type="primary"):
-                    open_all_hands_and_settle()
+            st.markdown("#### 대기실 인원 관리 및 테이블 초대")
+            if shared["waiting_room"]:
+                waiting_ids = list(shared["waiting_room"].keys())
+                waiting_names = [shared["waiting_room"][uid] for uid in waiting_ids]
+                
+                selected_names = st.multiselect("테이블에 추가할 대기실 인원을 선택하세요:", waiting_names)
+                
+                if st.button("선택한 인원 게임 테이블에 추가", use_container_width=True):
+                    for name in selected_names:
+                        for uid, uname in shared["waiting_room"].items():
+                            if uname == name and uid not in shared["players"]:
+                                shared["players"][uid] = {
+                                    "name": uname,
+                                    "bet": 0,
+                                    "folded": False,
+                                    "final_hand_text": ""
+                                }
+                                log_action(f"딜러가 {uname}님을 게임 테이블에 참여시켰습니다.")
                     st.rerun()
             else:
-                st.button("쇼다운 대기", disabled=True, use_container_width=True)
+                st.caption("현재 로그인 후 대기실에서 대기 중인 유저가 없습니다.")
+                
+            st.markdown("---")
+            st.markdown("#### 게임 라운드 제어")
+            d_col1, d_col2, d_col3 = st.columns(3)
+            with d_col1:
+                if not shared["game_started"]:
+                    if st.button("포커 매치 시작", use_container_width=True, type="primary"):
+                        err = start_classic_game()
+                        if err: st.error(err)
+                        else: st.rerun()
+                else:
+                    st.button("배팅 레이스 진행 중", disabled=True, use_container_width=True)
 
-        with d_col3:
-            if st.button("포커 룸 폐쇄 (전체 리셋)", use_container_width=True, type="secondary"):
-                shared["room_created"] = False
-                shared["deck"] = []
-                shared["game_started"] = False
-                shared["pot"] = 0
-                shared["current_max_bet"] = 0
-                shared["players"] = {}
-                shared["waiting_room"] = {}
-                shared["player_cards"] = {}
-                shared["chat_room"] = [("SYSTEM", "방이 폐쇄되었습니다. 다시 개설해 주세요.")]
-                st.session_state.my_discord_id = ""
-                st.session_state.my_display_name = ""
-                st.rerun()
+            with d_col2:
+                if shared["game_started"]:
+                    if st.button("쇼다운 (패 오픈 및 상금 정산)", use_container_width=True, type="primary"):
+                        open_all_hands_and_settle()
+                        st.rerun()
+                else:
+                    st.button("쇼다운 대기", disabled=True, use_container_width=True)
+
+            with d_col3:
+                if st.button("포커 룸 폐쇄 (전체 리셋)", use_container_width=True, type="secondary"):
+                    shared["room_created"] = False
+                    shared["deck"] = []
+                    shared["game_started"] = False
+                    shared["pot"] = 0
+                    shared["current_max_bet"] = 0
+                    shared["players"] = {}
+                    shared["waiting_room"] = {}
+                    shared["player_cards"] = {}
+                    shared["chat_room"] = [("SYSTEM", "방이 폐쇄되었습니다. 다시 개설해 주세요.")]
+                    st.session_state.my_discord_id = ""
+                    st.session_state.my_display_name = ""
+                    st.rerun()
+else:
+    # 패드 계정이나 일반 계정으로 접속 시 콘솔 대신 노출되는 가림막 안내 문구
+    st.info("♣ 딜러가 게임 테이블 조작 및 라운드를 제어하고 있습니다. 대기실 혹은 테이블 현황을 확인하며 대기해 주세요.")
 
 # =========================================================================
 # 테이블 베팅 및 게임 진행 상황판
@@ -424,4 +431,4 @@ else:
 
 # 로그
 st.markdown("### 실시간 테이블 타임라인")
-st.text_area("Live Logs", value="\n".join(shared["game_log"]), height=100, disabled=True, label_visibility="collapsed")
+st.text_area("Live Logs", value="\n".join(shared["game_log"]), height=100, disabled=True,
