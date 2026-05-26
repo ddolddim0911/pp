@@ -1,1 +1,1 @@
-streamlit
+discord.py>=2.3,<3
