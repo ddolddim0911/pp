@@ -8,9 +8,10 @@ from collections import Counter
 st.set_page_config(page_title="포커 룸", page_icon="🃏", layout="centered")
 
 # =========================================================================
-# 디스코드 봇 저장고(DATA_FILE) 연동 설정
+# [중요] 타 프로그램(디스코드 봇 등) 데이터베이스 파일 연동 설정
 # =========================================================================
-DISCORD_DATA_FILE_PATH = Path("user_data.json") 
+# ※ 만약 다른 폴더에 있다면 "C:/내봇폴더/user_data.json" 처럼 절대경로를 적어주세요.
+DISCORD_DATA_FILE_PATH = Path(_data_file) if _data_file else BASE_DIR / "user_data.json" 
 
 def load_all_discord_data():
     if not DISCORD_DATA_FILE_PATH.exists():
@@ -19,7 +20,7 @@ def load_all_discord_data():
         with DISCORD_DATA_FILE_PATH.open("r", encoding="utf-8") as file:
             return json.load(file)
     except Exception as e:
-        st.error(f"데이터 로드 실패: {e}")
+        st.error(f"데이터베이스 로드 실패 (파일 경로를 확인하세요): {e}")
         return {}
 
 def save_all_discord_data(data):
@@ -29,7 +30,7 @@ def save_all_discord_data(data):
             json.dump(data, file, indent=4, ensure_ascii=False)
         temp_file.replace(DISCORD_DATA_FILE_PATH)
     except Exception as e:
-        st.error(f"데이터 저장 실패: {e}")
+        st.error(f"데이터베이스 저장 실패: {e}")
 
 # =========================================================================
 # 서버 공용 게임 룸 데이터 정의 (실시간 공유 저장소)
@@ -94,18 +95,18 @@ def log_action(msg):
     shared["game_log"].insert(0, msg)
 
 # =========================================================================
-# 대기실 전용 포커 족보 및 기본 규칙 가이드 UI 함수 (문양/숫자 서열 추가)
+# 대기실 전용 포커 족보 및 기본 규칙 가이드 UI 함수 (문양/숫자 서열 포함)
 # =========================================================================
 def render_poker_guide():
     with st.expander("초보자를 위한 정통 5카드 포커 족보 가이드 (가장 강한 패 순서) 모를 시 미리 캡쳐", expanded=False):
         st.markdown("""
-        ### ⚠️ 기본 카드 서열 규칙 (동일 족보 시 승패 결정)
-        * **숫자 서열 (왼쪽이 가장 강함):** * **A** > **K** > **Q** > **J** > **10** > **9** > **8** > **7** > **6** > **5** > **4** > **3** > **2**
-        * **문양 서열 (왼쪽이 가장 강함):** * **♠ (스페이드)** > **◆ (다이아)** > **♥ (하트)** > **♣ (클로버)**
+        ### 카드 서열 규칙 (동일 족보 시 승패 결정)
+        * **숫자 서열 (왼쪽이 가장 강함):** **A** > **K** > **Q** > **J** > **10** > **9** > **8** > **7** > **6** > **5** > **4** > **3** > **2**
+        * **문양 서열 (왼쪽이 가장 강함):** **♠ (스페이드)** > **◆ (다이아)** > **♥ (하트)** > **♣ (클로버)**
 
         ---
 
-        ### 🃏 포커 족보 순위
+        ### 포커 족보 순위
         1. **로열 스트레이트 플러시**
            * 문양이 모두 같으면서 A, K, Q, J, 10 이 연달아 모인 최고의 패.
         2. **스트레이트 플러시**
@@ -193,37 +194,37 @@ st.title("포커 시스템")
 # --- [대기실 단계 1] 로그인 전 대기실 상태 ---
 if not st.session_state.my_discord_id:
     st.subheader("디스코드 연동 자동 로그인")
-    st.caption("디스코드 닉네임(Name)을 입력하면 대기실로 입장합니다.")
+    st.caption("디스코드 닉네임(Name)을 입력하면 실시간 데이터베이스를 검색하여 로그인합니다.")
     
-    # 💡 족보 가이드박스 노출
     render_poker_guide()
     
-    # 디스코드 고유 ID 대신 Name(닉네임)을 적도록 입력창 변경
     input_dc_name = st.text_input("본인의 디스코드 닉네임(Name)을 입력하세요:", placeholder="예: 홍길동").strip()
     
     if st.button("자동 로그인 및 대기실 입장", type="primary", use_container_width=True):
         if input_dc_name:
+            # 실시간으로 다른 파일에 보관된 외부 DB 호출
             discord_db = load_all_discord_data()
             found_id = None
             
-            # DB 데이터를 돌면서 입력한 이름(name)과 일치하는 유저의 고유 ID(Key) 검색
+            # 대소문자 및 양끝 공백을 무시하고 이름 매칭율 향상
             for uid, info in discord_db.items():
-                if info.get("name") == input_dc_name:
+                db_name = str(info.get("name", "")).strip()
+                if db_name.lower() == input_dc_name.lower():
                     found_id = uid
                     break
             
             if found_id:
                 st.session_state.my_discord_id = found_id
-                st.session_state.my_display_name = input_dc_name
+                st.session_state.my_display_name = discord_db[found_id]["name"] # 정확한 실시간 이름 대입
                 
-                shared["waiting_room"][found_id] = input_dc_name
-                log_action(f"{input_dc_name}님이 대기실에 입장했습니다.")
+                shared["waiting_room"][found_id] = discord_db[found_id]["name"]
+                log_action(f"{discord_db[found_id]['name']}님이 대기실에 입장했습니다.")
                 st.rerun()
             else:
-                st.error("디스코드 봇 저장고에 등록되지 않은 이름(Name)입니다. 정확히 대소문자를 확인해 주세요.")
+                st.error(f"'{input_dc_name}' 이름은 외부 연동 데이터베이스에 존재하지 않습니다. 디스코드 봇에 등록된 이름인지 혹은 파일 연동 경로가 올바른지 확인해 주세요.")
     st.stop()
 
-# 최신 포인트 동기화
+# 최신 포인트 동기화 (상대 프로그램이 수정한 수치 반영)
 current_db = load_all_discord_data()
 my_current_points = current_db.get(st.session_state.my_discord_id, {}).get("points", 0)
 
@@ -236,7 +237,6 @@ with col_sync:
 with col_msg:
     st.info(f"최신 로그: {shared['game_log'][0]}")
 
-# 로그인 후 대기창 상단에도 배치
 render_poker_guide()
 
 # =========================================================================
