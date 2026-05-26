@@ -12,9 +12,9 @@ st.set_page_config(page_title="포커 룸", page_icon="🃏", layout="centered")
 # =========================================================================
 DISCORD_DATA_FILE_PATH = Path("user_data.json")
 
-# ⭐ [필독] 예나님의 본계정 디스코드 고유 ID(숫자)를 여기에 꼭 적어주세요!
-# 예나님 본계정으로 로그인했을 때만 딜러 제어 콘솔이 열리게 됩니다.
-ADMIN_DISCORD_ID = "여기에_예나님_본계정_디스코드_ID를_넣으세요"
+# ⭐ [필독] 님의 디스코드 등록 이름을 여기에 정확히 적어주세요!
+# 로그인한 사람의 이름이 이 이름과 일치할 때만 딜러 제어 콘솔이 열립니다.
+ADMIN_NAME = "김람"
 
 def load_all_discord_data():
     if not DISCORD_DATA_FILE_PATH.exists():
@@ -84,7 +84,7 @@ def evaluate_5_card_hand(cards):
 
     most_common = val_counts.most_common()
     if is_flush and is_straight and straight_high == 14: return (10, "로열 스트레이트 플러시")
-    if is_flush and is_straight: return (9, "스트레이트 플러시")  # 🛠️ 오타 완벽 수정 완료!
+    if is_flush and is_straight: return (9, "스트레이트 플러시")
     if most_common[0][1] == 4: return (8, "포카드")
     if most_common[0][1] == 3 and most_common[1][1] == 2: return (7, "풀하우스")
     if is_flush: return (6, "플러시")
@@ -262,8 +262,8 @@ with col_send:
 # =========================================================================
 st.markdown("---")
 
-# 🔒 [보안 적용] 접속한 사람의 ID가 본계정 ID(ADMIN_DISCORD_ID)일 때만 제어 센터 조작 허용!
-if st.session_state.my_discord_id == ADMIN_DISCORD_ID:
+# 🔒 [보안 적용] 로그인한 표기 이름이 ADMIN_NAME과 똑같을 때만 관리자용 콘솔 오픈!
+if st.session_state.my_display_name == ADMIN_NAME:
     with st.expander("관리자 및 딜러 전용 제어 콘솔", expanded=not shared["room_created"]):
         if not shared["room_created"]:
             st.warning("현재 개설된 포커 방이 없습니다. 관리자가 방을 먼저 개설해야 합니다.")
@@ -331,7 +331,7 @@ if st.session_state.my_discord_id == ADMIN_DISCORD_ID:
                     st.session_state.my_display_name = ""
                     st.rerun()
 else:
-    # 패드 계정이나 일반 계정으로 접속 시 콘솔 대신 노출되는 가림막 안내 문구
+    # 예나님이 아닌 다른 계정(또는 관리자 이름과 다를 때) 로그인 시 노출되는 가림막
     st.info("♣ 딜러가 게임 테이블 조작 및 라운드를 제어하고 있습니다. 대기실 혹은 테이블 현황을 확인하며 대기해 주세요.")
 
 # =========================================================================
